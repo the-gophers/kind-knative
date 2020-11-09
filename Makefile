@@ -21,6 +21,8 @@ TOOLSBIN		= $(ROOT_DIR)/tools/bin
 GO_INSTALL		= $(ROOT_DIR)/scripts/go_install.sh
 KNATIVE_VERSION := 0.18.2
 KOURIER_VERSION := 0.18.1
+IMAGE			:= dev.local/the-gophers/knative-go
+TAG				:= dev
 
 # Active module mode, as we use go modules to manage dependencies
 export GO111MODULE=on
@@ -29,7 +31,7 @@ V = 0
 Q = $(if $(filter 1,$V),,@)
 
 .PHONY: all
-all: kind-create deploy-knative deploy-knative-helloworld
+all: fmt lint tidy build test
 
 ## --------------------------------------
 ## Tooling Binaries
@@ -53,12 +55,26 @@ KUBECTL_VER := v1.19.1
 KUBECTL_BIN := kubectl
 KUBECTL := $(TOOLSBIN)/$(KUBECTL_BIN)-$(KUBECTL_VER)
 
-$(KUBECTL): ## Build kubectl
+$(KUBECTL):
 	mkdir -p $(TOOLSBIN)
 	rm -f "$(KUBECTL)*"
 	curl -fsL https://storage.googleapis.com/kubernetes-release/release/$(KUBECTL_VER)/bin/$(GOOS)/$(GOARCH)/kubectl -o $(KUBECTL)
 	ln -sf "$(KUBECTL)" "$(TOOLSBIN)/$(KUBECTL_BIN)"
 	chmod +x "$(TOOLSBIN)/$(KUBECTL_BIN)" "$(KUBECTL)"
+
+KUSTOMIZE_VER := v3.5.4
+KUSTOMIZE_BIN := kustomize
+KUSTOMIZE := $(TOOLSBIN)/$(KUSTOMIZE_BIN)-$(KUSTOMIZE_VER)
+
+$(KUSTOMIZE):
+	GOBIN=$(TOOLSBIN) $(GO_INSTALL) sigs.k8s.io/kustomize/kustomize/v3 $(KUSTOMIZE_BIN) $(KUSTOMIZE_VER)
+
+ENVSUBST_VER := master
+ENVSUBST_BIN := envsubst
+ENVSUBST := $(TOOLSBIN)/$(ENVSUBST_BIN)
+
+$(ENVSUBST):
+	GOBIN=$(TOOLSBIN) $(GO_INSTALL) github.com/drone/envsubst/cmd/envsubst $(ENVSUBST_BIN) $(ENVSUBST_VER)
 
 ## --------------------------------------
 ## Tilt / Kind
@@ -99,7 +115,10 @@ test-cover: $(GOVERALLS) ; $(info $(M) running go test…)
 	$(Q) $(GOVERALLS) -coverprofile=profile.cov -service=github
 
 .PHONY: ci
-ci: fmt lint vet tidy test-cover build
+ci: fmt lint vet tidy test-cover
+
+.PHONE: test-e2e
+test-e2e: deploy-knative
 
 ## --------------------------------------
 ## Tilt / Kind
@@ -107,15 +126,22 @@ ci: fmt lint vet tidy test-cover build
 
 .PHONY: kind-create
 kind-create: ; $(info $(M) create knative kind cluster if needed…)
-	./scripts/kind-with-registry.sh
+	./scripts/kind-without-local-registry.sh
 
 .PHONY: tilt-up
-tilt-up: $(ENVSUBST) $(KUSTOMIZE) kind-create ; $(info $(M) start tilt and build kind cluster if needed…)
+tilt-up: $(KUSTOMIZE) kind-create deploy-knative ; $(info $(M) start tilt and build kind cluster if needed…)
 	tilt up
 
 .PHONY: kind-reset
 kind-reset: ; $(info $(M) delete local kind cluster…)
 	kind delete cluster --name=knative || true
+
+.PHONY: kind-deploy-app
+kind-deploy-app: $(KUSTOMIZE) $(KUBECTL) $(ENVSUBST) docker-build ; $(info $(M) deploying knative app…)
+	kind load docker-image --name knative $(IMAGE):$(TAG)
+	IMAGE=$(IMAGE) TAG=$(TAG) $(ENVSUBST) < ./config/image-patch-template.yml > ./test/config/image-patch.yml
+	$(KUSTOMIZE) build ./test/config | $(KUBECTL) apply -f -
+	$(KUBECTL) wait ksvc helloworld-go --all --timeout=-1s --for=condition=Ready
 
 ## --------------------------------------
 ## KNative
@@ -155,3 +181,27 @@ deploy-knative-helloworld: $(KUBECTL) ; $(info $(M) deploying helloworld…)
 .PHONY: helloworld-url
 helloworld-url: $(KUBECTL)
 	$(Q) $(KUBECTL) get ksvc hello -o jsonpath='{.status.url}'
+
+.PHONY: dev-url
+dev-url: $(KUBECTL)
+	$(Q) $(KUBECTL) get ksvc helloworld-go -o jsonpath='{.status.url}'
+
+## --------------------------------------
+## Docker
+## --------------------------------------
+
+.PHONY: docker-build
+docker-build: ; $(info $(M) docker build…)
+	docker build . -t $(IMAGE):$(TAG)
+
+.PHONY: docker-push
+docker-push: ; $(info $(M) docker push…)
+	docker push $(IMAGE):$(TAG)
+
+## --------------------------------------
+## Test
+## --------------------------------------
+
+.PHONY: test-e2e
+test-e2e: kind-deploy-app ; $(info $(M) deploying to kind and running tests…)
+	curl $$($(KUBECTL) get ksvc helloworld-go -o jsonpath='{.status.url}')

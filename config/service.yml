@@ -1,0 +1,18 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: helloworld-go
+  namespace: default
+  labels:
+    app: sample-app
+spec:
+  template:
+    spec:
+      containers:
+        - image: ghcr.io/the-gophers/knative-go:latest
+          name: service
+          ports:
+            - containerPort: 8000
+          env:
+            - name: TARGET
+              value: "Go Sample v1"

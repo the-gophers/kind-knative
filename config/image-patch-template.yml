@@ -1,0 +1,16 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: helloworld-go
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: ${IMAGE}:${TAG}
+          name: service
+          ports:
+              - containerPort: 8000
+          env:
+            - name: TARGET
+              value: "Go Sample template v1"

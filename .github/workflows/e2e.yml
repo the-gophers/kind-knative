@@ -20,6 +20,6 @@ jobs:
       - name: deploy knative
         run: |
           make deploy-knative
-      - name: run helloworld
+      - name: run e2e tests
         run: |
-          make deploy-knative-helloworld
+          ./scripts/ci-e2e.sh
