@@ -1,0 +1,11 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.grpc.v1.cri".registry.mirrors."localhost:${reg_port}"]
+      endpoint = ["http://${reg_host}:${reg_port}"]
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 31080 # expose port 31380 of the node to port 80 on the host, later to be used by kourier ingress
+        hostPort: 80
