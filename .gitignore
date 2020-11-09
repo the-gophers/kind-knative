@@ -18,3 +18,5 @@
 
 bin
 tools
+.tiltbuild
+test/config/image-patch.yml
