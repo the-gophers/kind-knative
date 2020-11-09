@@ -1,0 +1,25 @@
+name: kind e2e
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: start kind
+        uses: engineerd/setup-kind@v0.4.0
+        with:
+          config: ./config/kind-config.yml
+          version: v0.9.0
+          name: knative
+      - name: deploy knative
+        run: |
+          make deploy-knative
+      - name: run helloworld
+        run: |
+          make deploy-knative-helloworld
