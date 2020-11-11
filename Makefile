@@ -165,6 +165,7 @@ deploy-kourier: $(KUBECTL) ; $(info $(M) deploying kourier components…)
 	$(KUBECTL) patch configmap -n knative-serving config-domain -p "{\"data\": {\"127.0.0.1.nip.io\": \"\"}}"
 	$(KUBECTL) apply -f ./config/kourier-listen.yml
 	$(KUBECTL) patch configmap/config-network -n knative-serving --type merge --patch '{"data":{"ingress.class":"kourier.ingress.networking.knative.dev"}}'
+	$(KUBECTL) patch configmap/config-deployment -n knative-serving --type merge --patch '{"data":{"registriesSkippingTagResolving":"dev.local"}}'
 
 .PHONY: status-knative
 status-knative: $(KUBECTL) ; $(info $(M) getting knative status…)
