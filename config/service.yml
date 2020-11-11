@@ -9,7 +9,7 @@ spec:
   template:
     spec:
       containers:
-        - image: ghcr.io/the-gophers/knative-go:latest
+        - image: dev.local/the-gophers/knative-go:latest
           name: service
           ports:
             - containerPort: 8000
