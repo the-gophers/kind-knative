@@ -15,7 +15,7 @@ spec:
             - containerPort: 8000
           env:
             - name: TARGET
-              value: "Go Sample v2"
+              value: "Go Sample v1"
           readinessProbe:
             httpGet:
               path: /
